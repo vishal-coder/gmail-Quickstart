@@ -5,3 +5,4 @@ credentials - Copy.json
 credentials.json
 node_modules
 launch.json
+token.json
