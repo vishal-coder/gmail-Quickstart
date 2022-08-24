@@ -90,13 +90,13 @@ async function getNewToken(oAuth2Client, callback) {
 
       let oauth2Client = new google.auth.OAuth2(); // create new auth client
       oauth2Client.setCredentials({ access_token: token.access_token }); // use the new auth client with the access_token
-      let oauth2 = google.oauth2({
-        auth: oauth2Client,
-        version: "v2",
-      });
-      console.log("now calling get user profile");
-      let { data } = await oauth2.userinfo.get(); // get user info
-      console.log("user profile is 2 ", data);
+      // let oauth2 = google.oauth2({
+      //   auth: oauth2Client,
+      //   version: "v2",
+      // });
+      // console.log("now calling get user profile");
+      // let { data } = await oauth2.userinfo.get(); // get user info
+      // console.log("user profile is 2 ", data);
       //-------------------------
 
       // Store the token to disk for later program executions
@@ -104,7 +104,7 @@ async function getNewToken(oAuth2Client, callback) {
         if (err) return console.error(err);
         console.log("Token stored to", TOKEN_PATH);
       });
-      // callback(oAuth2Client);
+      callback(oAuth2Client);
     });
   });
 }
@@ -115,41 +115,131 @@ async function getNewToken(oAuth2Client, callback) {
  * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
  */
 async function listLabels(auth) {
+  let mlist = null;
+  let mailList = [];
   // const gmail = google.gmail({ version: "v1", auth });
+  // var gmail = google.gmail({
+  //   auth: auth,
+  //   version: "v1",
+  // });
+  // gmail.users.getProfile(
+  //   {
+  //     auth: auth,
+  //     userId: "me",
+  //   },
+  //   function (err, res) {
+  //     if (err) {
+  //       console.log(err);
+  //     } else {
+  //       console.log("inside else of get profile");
+  //       console.log("emailAddress", res.data.emailAddress);
+  //       console.log(JSON.stringify(res));
+  //     }
+  //   }
+  // );
+  // gmail.users.labels.list(
+  //   {
+  //     userId: "me",
+  //   },
+  //   (err, res) => {
+  //     if (err) return console.log("The API returned an error: " + err);
+  //     const labels = res.data.labels;
+  //     if (labels.length) {
+  //       console.log("Labels:");
+  //       labels.forEach((label) => {
+  //         console.log(`- ${label.name}`);
+  //       });
+  //     } else {
+  //       console.log("No labels found.");
+  //     }
+  //   }
+  // );
   var gmail = google.gmail({
     auth: auth,
     version: "v1",
   });
-  gmail.users.getProfile(
-    {
-      auth: auth,
+  const res = await gmail.users.messages.list({
+    // The user's email address. The special value `me` can be used to indicate the authenticated user.
+    userId: "me",
+    labelIds: "INBOX",
+  });
+  mlist = res.data.messages;
+  console.log("mlist is---", res.data.messages);
+
+  mlist.forEach(async function (mail) {
+    // const res = await getmail(gmail, mail.id);
+    const res = await gmail.users.messages.get({
       userId: "me",
-    },
-    function (err, res) {
-      if (err) {
-        console.log(err);
-      } else {
-        console.log("inside else of get profile");
-        console.log("emailAddress", res.data.emailAddress);
-        console.log(JSON.stringify(res));
+      id: mail.id,
+      format: "metadata",
+    });
+    const monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    const starred = res.data.labelIds.includes("STARRED");
+    const snippet = res.data.snippet;
+    let from;
+    let date;
+
+    res.data.payload.headers.map(function (header) {
+      if (header.name == "From") {
+        console.log(
+          "header object is",
+          header.value.substring(0, header.value.indexOf("<"))
+        );
+        from = header.value.substring(0, header.value.indexOf("<"));
       }
-    }
-  );
-  gmail.users.labels.list(
-    {
-      userId: "me",
-    },
-    (err, res) => {
-      if (err) return console.log("The API returned an error: " + err);
-      const labels = res.data.labels;
-      if (labels.length) {
-        console.log("Labels:");
-        labels.forEach((label) => {
-          console.log(`- ${label.name}`);
-        });
-      } else {
-        console.log("No labels found.");
+      if (header.name == "Date") {
+        console.log("rawDate", header.value);
+        const rawDate = new Date(header.value);
+        console.log("rawDate", rawDate);
+        date = `${rawDate.getDate()} ${monthNames[rawDate.getMonth()]}`;
       }
-    }
-  );
+    });
+    console.log("resonse in push list is", starred, from, snippet, date);
+    const mailData = {
+      isStarred: starred,
+      from: from,
+      snippet: snippet,
+      date: date,
+    };
+
+    //  console.log("resonse in push list is", res);
+    mailList.push(mailData);
+    //  console.log("mailList--ind foreach", mailList);
+  });
+
+  console.log("mailList--end", mailList);
+  // gmail.users.messages.get(
+  //   {
+  //     userId: "me",
+  //     id: "182c3b7839fc2c09",
+  //     format: "raw",
+  //   },
+  //   function (err, res) {
+  //     // console.log(new Buffer.alloc(res.raw, "base64").toString());
+  //     //  console.log(Buffer.from(res.data.raw, "base64").toString());
+  //     //console.log(res.data.raw);
+  //   }
+  // );
+}
+async function getmail(gmail, id) {
+  const res = await gmail.users.messages.get({
+    userId: "me",
+    id: id,
+    format: "metadata",
+  });
+  console.log("at end", res);
+  return res.data.labelIds;
 }
